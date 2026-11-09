@@ -41,7 +41,7 @@ This document provides a detailed technical walkthrough of the codebase architec
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐  │
 │  │  Constants   │  │  BIO dict    │  │  BACTERIA_     │  │
 │  │  (DIMS)      │  │  (80+ params)│  │  TEMPLATES     │  │
-│  │  TOWER_SIZES │  │              │  │  (3 species)   │  │
+│  │  TOWER_SIZES │  │              │  │  (4 species)   │  │
 │  └──────┬───────┘  └──────┬───────┘  └───────┬────────┘  │
 │         │                 │                  │            │
 │         ▼                 ▼                  ▼            │
@@ -81,9 +81,10 @@ This document provides a detailed technical walkthrough of the codebase architec
 └─────────────────────────────────────────────────────────┘
          │
          ▼
-┌─────────────────┐
-│ BacteriaModel.py│  (re-exports for library use)
-└─────────────────┘
+┌──────────────────────────────┐
+│ OilFabricationTower.py       │  (standalone: also importable as a library;
+│   showcase/simulation CLI    │   former BacteriaModel.py wrapper merged in)
+└──────────────────────────────┘
 ```
 
 ---
@@ -92,10 +93,11 @@ This document provides a detailed technical walkthrough of the codebase architec
 
 ```
 OilSynthesis/
-├── OilFabricationTower.py     # Main: model + renderer + UI (8,200+ lines)
-├── BacteriaModel.py           # Module interface (re-exports, 722 lines)
+├── OilFabricationTower.py     # Standalone: model + renderer + UI + all reports (~12k lines)
+├── OilFabricationTower.md     # System doc: CO2 cleanup impact, species detail, changelog
 ├── OilFabricationTower.obj    # Exported 3D geometry (1.7 MB)
 ├── OilFabricationTower.mtl    # Exported materials (12 KB)
+├── _ui_shots/                 # Headless UI screenshots (--screenshot mode)
 ├── ChiefJuiceV1.17.py         # Reference codebase (pattern source)
 ├── ReferenceCode/             # Additional reference implementations
 ├── informational.md           # Project notes
@@ -112,34 +114,39 @@ The file is organized in sequential sections, each separated by banner comments:
 
 | Section                | Lines (approx) | Description                                      |
 |------------------------|-----------------|--------------------------------------------------|
-| Header & Imports       | 1-50            | Module docstring, imports, pygame init           |
-| Tower Dimensions       | 50-410          | `DIMS` dict, `TOWER_SIZES` presets, `apply_tower_size()` |
-| Colors                 | 423-437         | Color constants (BG, C_ACCENT, C_TEXT, etc.)     |
-| Math Helpers           | 439-454         | Rotation matrices, clamp, mix, detail segmentation|
-| Primitive Builders     | 456-580         | `_solid_cylinder`, `_hollow_cylinder`, `_box`, `_panel_mesh`, `_pipe`, `_tray`, `_sphere` |
-| Tower Assembly         | 580-1580        | `build_tower()` -- assembles 291 parts from primitives |
-| HUD Helpers            | 1580-1612       | `_label()`, `_panel()`, `_bar()`, `_mini_bar()`, `_section_hdr()` |
-| BIO Constants          | 1620-1700       | 80+ biological constants (RuBisCO kcat, MEP flux, etc.) |
-| Bacteria Templates     | 1700-1850       | `BACTERIA_TEMPLATES` dict (3 species with genome, GC, genes) |
-| Genetic Code           | 1850-1950       | `GENETIC_CODE` dict (codon table, amino acid properties) |
-| Biological Models      | 1950-3150       | 20+ model functions (photosynthesis, CO2, oil, growth, etc.) |
-| Bacteria Synergy       | 3150-3170       | `BACTERIA_SYNERGY` dict (10 multipliers)          |
-| Monte Carlo Priors     | 3170-3190       | `MONTE_CARLO_PRIORS` list (9 parameters to perturb)|
-| Temporal Simulation    | 3190-3400       | `BacteriaState`, `BacteriaSimulationResult`, `initialize_bacteria_state()`, `simulate_bacteria()` |
-| Synergy Computation    | 3400-3430       | `compute_synergy_factor()`                        |
-| Monte Carlo & Scenarios| 3430-3600       | `run_bacteria_monte_carlo()`, `compare_bacteria_scenarios()`, `assess_bacteria_benefit_risk()` |
-| Oil Production Model   | 3600-1580       | `OilProductionModel` class (integrates all models) |
-| Tower State            | 1580-1620       | `TowerState` class (model + camera + animation)   |
-| 3D Renderer            | 1620-5700       | `TowerRenderer` class (projection, shading, painter) |
-| CLI Reports            | 5700-5830       | `run_selftest()`, `run_feasibility()`, `run_report()` |
-| OBJ Export             | 5830-5870       | `export_obj()`                                    |
-| Top Bar & Tabs         | 5850-5910       | `TAB_MODES`, `TAB_LABELS`, `draw_topbar()`, `handle_tab_click()` |
-| UI Helpers             | 5900-5920       | `_mini_bar()`, `_section_hdr()`, `_clamp_x()`     |
-| Bacteria Cell Diagram  | 5920-6800       | Cell drawing functions (bilayer, DNA, organelles)  |
-| Bacteria Tab           | 6800-7370       | `draw_bacteria_tab()` -- interactive cell viewer   |
-| Synergy Tab            | 7370-7840       | `draw_synergy_tab()` -- flow diagram with KPIs, responsive layout, cached glow/grid |
-| HUD Draw               | 7840-8100       | `draw_hud()` -- tower tab info panels              |
-| Main Loop              | 8100-8250       | Event handling, tab routing, render dispatch       |
+| Header & Imports       | 1-48            | Module docstring, imports, pygame init           |
+| Tower Dimensions       | 49-545          | `DIMS` dict (incl. ~50 feeding-program tactics), `TOWER_SIZES` presets, `apply_tower_size()` |
+| Colors                 | 546-561         | Color constants (BG, C_ACCENT, C_TEXT, etc.)     |
+| Math Helpers           | 562-578         | Rotation matrices, clamp, mix, detail segmentation|
+| Primitive Builders     | 579-680         | `_solid_cylinder`, `_hollow_cylinder`, `_box`, `_panel_mesh`, `_pipe`, `_tray`, `_sphere`, `Mesh`, `Part` |
+| Tower Assembly         | 681-867         | `build_tower()` -- assembles 291 parts from primitives |
+| Oil Production Model   | 868-1735        | `OilProductionModel` class (integrates all models, incl. opacus waste-C path + feed caps) |
+| Tower State            | 1736-1779       | `TowerState` class (model + camera + animation)   |
+| 3D Renderer            | 1780-2153       | `TowerRenderer` class (vectorized numpy pipeline, per-part bbox culling, batched grid/oil projection) |
+| HUD Helpers            | 2154-2335       | `_CachedFont`, `_label()`, `_panel()`, `_bar()`, `_mini_bar()`, `_section_hdr()`, caches |
+| Biological Models      | 2336-3017       | 20+ model functions (photosynthesis, CO2, oil, growth, etc.) + `compute_bacteria_model()` |
+| Bacteria Templates     | 3018-3359       | `BACTERIA_TEMPLATES` dict (4 species: genome, GC, genes, readiness, theoretical_flags, evidence_grade) |
+| Temporal Simulation    | 3097-3385       | `BacteriaState`, `initialize_bacteria_state()`, `simulate_bacteria()` |
+| Synergy & Priors       | 3870-4117       | `BACTERIA_SYNERGY`, `MONTE_CARLO_PRIORS`, `run_bacteria_monte_carlo()`, `compare_bacteria_scenarios()`, `compute_synergy_factor()` |
+| Genetic Code           | 4118-4174       | `GENETIC_CODE` dict (codon table, amino acid properties) |
+| Showcase & Reports     | 4175-5129       | Species showcase, comparison, JSON export, simulation reports |
+| Candidate Species      | 5130-5204       | `CANDIDATE_REAL_SPECIES` (10 real organisms with status) |
+| Evidence Audit         | 5205-5463       | `EVIDENCE_AUDIT` -- 59 claims graded A-D; `get_evidence_summary()` |
+| Bacteria Report Suite  | 5464-7282       | `run_bacteria_report()`, per-species showcase printers, `INFO_PAGES` (27 pages incl. PROOF & VALIDATION) |
+| Self-Test              | 7283-7547       | `run_selftest()` -- 8 stages |
+| Feasibility / Report   | 7548-7701       | `run_feasibility()`, `run_report()`               |
+| OBJ Export             | 7702-7726       | `export_obj()`                                    |
+| Multi-Tab UI           | 7727-9047       | `TAB_MODES`, `draw_topbar()` (with live stats strip), tab hitboxes, cell diagram builders |
+| Bacteria Tab           | 9024-9663       | `draw_bacteria_tab()` + `_draw_species_data_panel()` (cached 8000px surfaces), sim/synergy caches |
+| Production Tab         | 9646-9834       | `_cached_tab()` wrapper + `_draw_production_tab_impl()` (3-col + bands) |
+| Economics Tab          | 9835-9999       | `draw_economics_tab()` + `_draw_economics_tab_impl()` |
+| Synergy Tab            | 10000-10574     | `draw_synergy_tab()` -- flow diagram, KPI strip, live flows, proofs, demonstrated-at-scale |
+| HUD Draw               | 10575-10681     | `draw_hud()` -- stats panel, CONTROLS panel, info pages |
+| Bacteria Report        | 10682-11464     | Report/export helpers                             |
+| Fuel Products          | 11465-11563     | `FUEL_PRODUCTS`, `get_fuel_manifest()` (8 graded products) |
+| Evidence Audit Print   | 11564-11672     | `print_evidence_audit()`                          |
+| Screenshot Mode        | 11673-11723     | `run_screenshot_mode()` -- headless UI captures   |
+| Main Loop              | 11724-12016     | `main()` -- CLI dispatch + interactive event loop |
 
 ---
 
@@ -159,7 +166,7 @@ DIMS (dimensions)
     │         ▼
     │    Photon flux per tray
     │         │
-    BACTERIA_TEMPLATES (3 species)
+    BACTERIA_TEMPLATES (4 species)
     │         │
     │         ▼
     │    compute_bacteria_model(species_idx)
@@ -178,6 +185,15 @@ DIMS (dimensions)
     │         │
     │         ▼
     │    Per-species oil production (kg/hr)
+    │         │
+    │         ├──→ Feeding program (~50 tactics, capped at
+    │         │    3.2x shared / 1.7x hetero): N/P/micronutrients,
+    │         │    inorganic carbon (bicarb, flue gas, CO2 recycle),
+    │         │    organic co-feed (acetate, glycerol, molasses,
+    │         │    VFA, lignin liquor, waste oils, food waste...)
+    │         │
+    │         ├──→ R. opacus: organic co-feed -> TAG -> HVO
+    │         │    (24/7 heterotroph, no light or H2 needed)
     │         │
     │         ▼
     │    Sum → Total oil (kg/hr → bbl/day → bbl/yr)
@@ -255,6 +271,8 @@ The renderer is a **pure-Python software renderer** using numpy for matrix opera
 - 35,136 vertices, 27,619 faces (large tower)
 - ~30-60 FPS on modern hardware
 - `_detail_seg()` adjusts geometric detail based on `VISUAL_DETAIL` setting
+- **Per-part bbox culling**: screen-space bounding boxes for all parts are computed in one vectorized pass (`np.minimum.at`/`np.maximum.at` over `_vpart`); parts whose projected bbox is smaller than `min_area_eff` are culled wholesale before any per-face work. The threshold scales with camera distance (`min_area * dist/120`) so far zooms drop speck geometry automatically. Emissive parts are exempted via `_part_emis` (built in `_build_flat`) so micro-parts like the rooftop beacon are never culled. The same bboxes feed hover picking + label anchoring -- `screeninfo` only iterates live (drawn) parts.
+- **Batched projections**: ground-grid lines and oil-flow droplets are projected in single numpy ops instead of per-segment `_project()` calls.
 
 ---
 
@@ -494,12 +512,14 @@ while running:
 ```
 
 ### Font System
-Two font sizes used throughout:
+Two font sizes used throughout, both wrapped in `_CachedFont`:
 - `font`: 18px (body text, labels, values)
 - `big_font`: 24px (headers, titles, KPI values)
 
+`_CachedFont` is a `pygame.font.Font` proxy that memoizes `render()` by `(text, aa, color)` and `size()` by text (8192-entry caps). The UI re-renders thousands of identical strings per frame; the cache turns those into dict lookups. Renders with a background color or non-string text bypass the cache; unhashable colors fall back to a direct `font.render` call.
+
 ### Panel System
-`_panel(surf, x, y, w, h, alpha=200)` draws a semi-transparent rounded rect with border. Uses a cache (`_panel_cache`) keyed by `(w, h, alpha)` to avoid recreating surfaces.
+`_panel(surf, x, y, w, h, alpha=200)` draws a semi-transparent rounded rect with border. Uses a cache (`_panel_cache`) keyed by `(w, h, alpha)` to avoid recreating surfaces. `_label()` similarly caches label background surfaces (`_label_bg_cache`) by `(w+8, h+2)`.
 
 ---
 
@@ -508,10 +528,10 @@ Two font sizes used throughout:
 The `draw_synergy_tab()` function is the most visually complex tab. Rendering order:
 
 1. **Animated grid background** -- Pulsing alpha grid lines on a cached SRCALPHA surface (only `set_alpha()` varies per frame)
-2. **KPI strip** (non-scrolling, always visible) -- 6 cards with top accent bars, value rendered with `big_font` and unit positioned via actual rendered width
+2. **KPI strip** (non-scrolling, always visible) -- 8 cards (oil, CO2, O2, H2 store, HVO, feeds, revenue, stability) with top accent bars, value rendered with `big_font` and unit positioned via actual rendered width
 3. **Title panel** -- With cached glow effect and left accent stripe
-4. **Species headers** (3 columns, 88px height) -- With cached glow, accent bars, ringed dots, 5 text lines (name, role, oil type, oil fraction, live output)
-5. **Step boxes** (18 total: 3 species × 6 steps, 96px height each) -- Each with:
+4. **Species headers** (4 columns, 88px height) -- With cached glow, accent bars, ringed dots, READY badge, and text lines (name, role, oil type, oil fraction, live output)
+5. **Step boxes** (24 total: 4 species × 6 steps, 96px height each) -- Each with:
    - Cached glow border (pulsing with `sin(t)`)
    - Left accent stripe
    - Ringed number circle
@@ -527,8 +547,10 @@ The `draw_synergy_tab()` function is the most visually complex tab. Rendering or
    - Label pill at curve apex (semi-transparent background with colored border)
 8. **Legend panel** -- With mini curved arrow icons, items wrap to new line if panel width exceeded; panel height adapts
 9. **Synergy multipliers panel** -- Responsive column positions (fractions of `cw`), accent header, gradient mini bars, text truncation with ellipsis, combined total
-10. **Scientific proofs panel** -- Responsive claim/reference columns (52% split), blue accent header, text truncation
-11. **Tower model output panel** -- Responsive 2-column layout (42% label / 58% value), gold accent header, text truncation
+10. **Live cross-species flows panel** -- 7 quantified exchanges pulled from `state.model.summary()`: O2 to Knallgas, respired CO2 refixation, organic-C to opacus, exudates/lysate, digestate return, H2 night buffer, nutrient loops -- each tagged `[gas]/[carbon]/[nutrient]/[energy]/[loop]`
+11. **Scientific proofs panel** -- Responsive claim/reference columns (52% split), blue accent header, text truncation
+12. **Demonstrated at scale panel** -- Real deployments (Monsanto/Metabolix/Tepha PHA, Neste/DGD HVO, Sapphire demo fleet, Continental/JAL + SUSTEO flights, Gevo isobutanol, DOE AT3/NAABB) + an explicit honest-gap line separating proven components from modeled integration
+13. **Tower model output panel** -- Responsive 2-column layout (42% label / 58% value), gold accent header, text truncation
 
 ### Helper Functions (synergy tab specific)
 - `_glow_rect(surf, x, y, w, h, color, intensity)` -- 3-layer glowing border, **cached** via `_glow_cache` dict keyed by `(w, h, color, round(intensity, 2))`; single surface with 3 border layers drawn at once
@@ -536,9 +558,17 @@ The `draw_synergy_tab()` function is the most visually complex tab. Rendering or
 - `_efficiency_ring(surf, cx, cy, r, frac, color)` -- Circular progress arc drawn as polyline
 
 ### Performance Caches (synergy tab)
-- `_glow_cache` -- Caches glow border surfaces by `(w, h, color, intensity)` to avoid recreating 3-layer surfaces per call
+- `_glow_cache` -- Caches glow border surfaces by `(w, h, color)`; baked once at full intensity, per-frame pulsing done via `set_alpha()` which scales all border layers at blit time
 - `_grid_cache` -- Caches grid background surface by `(cw, rect.h, grid_spacing)`; only `set_alpha()` is called per frame for the pulsing effect
 - `_panel_cache` -- (pre-existing) Caches semi-transparent panel surfaces by `(w, h, alpha)`
+
+### Performance Caches (all tabs)
+- `_CachedFont` -- Memoizes `font.render()` by `(text, aa, color)` and `font.size()` by text (8192-entry caps each); bg renders and non-str inputs bypass
+- `_species_panel_cache` -- Bacteria tab: each species' scrollable data panel is rendered once into an 8000px-tall off-screen surface keyed by `(species_idx, w, h, text_w, selected)`, then blit-clipped per frame
+- `_sim_cache` / `_syn_factor_cache` -- `simulate_bacteria()` and `compute_synergy_factor()` results per species (run only on panel-cache misses)
+- `_fuel_manifest_cache` -- `get_fuel_manifest()` per tower size (avoids rebuilding `OilProductionModel` per frame)
+- `_tab_static_cache` -- Production/Economics tabs rendered once per `(tab, w, h)` at scroll==0; scrolled views bypass the cache and draw directly
+- `_label_bg_cache` -- Label background rects by `(w+8, h+2)`
 
 ### Responsive Layout System
 All bottom panels (synergy multipliers, proofs, model output) use fractional positions based on `cw` (content width) instead of hardcoded pixel offsets:
@@ -551,20 +581,22 @@ All bottom panels (synergy multipliers, proofs, model output) use fractional pos
 
 ## Bacteria Tab Rendering Pipeline
 
-The `draw_bacteria_tab()` function renders animated cell diagrams:
+The `draw_bacteria_tab()` function renders 4 side-by-side species columns. Each column is split into an animated cell diagram (top, drawn per-frame) and a scrollable data panel (bottom, cached):
 
-1. **Species selector** (top) -- 3 clickable panels showing species name, type, oil type
-2. **Cell diagram** (center) -- Species-specific rendering:
-   - **B. braunii**: Chloroplasts with thylakoids, pyrenoid, oil droplets, nucleus, cell wall
-   - **Synechocystis**: Carboxysomes, thylakoid membranes, phycobilisomes, nucleoid, PHB granules
-   - **R. eutropha**: Hydrogenase complexes, PHB granules (large), nucleoid, S-layer, flagellum
+1. **Species columns** (top) -- 4 clickable headers: name, live tower output (kg/hr + share bar)
+2. **Cell diagram** (per column) -- Species-specific rendering:
+   - **B. braunii**: Chloroplasts with thylakoids, pyrenoid, botryococcene droplets, nucleus, cell wall, ER/Golgi/vacuole
+   - **Synechocystis**: Carboxysomes, thylakoid membranes, phycobilisomes, nucleoid (aar+ado), poly-P/cyanophycin granules, FAS
+   - **R. eutropha**: [NiFe] hydrogenase complexes, PHB granules (large), nucleoid (phaCAB), pHG1 megaplasmid, CBB cycle, ATP synthase
+   - **R. opacus**: Mycolic-acid mycomembrane, TAG lipid bodies, FAS-I, glyoxylate shunt, nucleoid (atfA+fasI), VFA/aromatic transporters
 3. **Organelle rendering**: Each organelle is drawn with:
    - `_draw_phospholipid_bilayer()` -- Double ring of dots for membranes
    - `_draw_dna_strands()` -- Animated wavy lines for DNA/chromatin
    - Animated pulsing/rotation based on `synergy_anim_t` or separate animation timer
-4. **Hover tooltips** -- `_bacteria_hover_regions` list rebuilt each frame
-5. **Detail panel** (right side) -- Shows selected organelle details
-6. **Exploded view** -- `_bacteria_explode_amt` animates organelles separating
+4. **Data panel** (per column, cached) -- `_draw_species_data_panel()` renders into an 8000px off-screen surface (`_species_panel_cache`, keyed by `(idx, w, h, text_w, selected)`): live tower contribution, READY/THEORETICAL readiness badges, lit-grade line, genome stats, identity & genome detail, cell anatomy, metabolic pathway, computed proteins, operons, simulation results, advanced analysis, EVIDENCE AUDIT section, PROOF OF CAPABILITY (parsed from `science_notes`), science notes, procurement. Text is pixel-truncated to column width; `_wrap_lines` hard-breaks over-width tokens (comma-joined operon lists).
+5. **Hover tooltips** -- `_bacteria_hover_regions` list rebuilt each frame
+6. **Detail panel** -- Shows selected organelle details (`_get_organelle_details`, per-species `DATA[idx]`)
+7. **Exploded view** -- `_bacteria_explode_amt` animates organelles separating
 
 ---
 
@@ -576,6 +608,7 @@ The `OilProductionModel` class computes economics in its `__init__`:
 Section 10d: ECONOMIC MODEL
     ├── Construction cost = $5,000/m² × TOTAL_BIO_AREA + $500K permitting
     ├── Operating costs:
+    │   ├── Feed inputs: ~$215M/yr (dominant -- sum of 50 feed tactics)
     │   ├── Labor: $500K/yr (fixed)
     │   ├── Maintenance: 2% of construction
     │   └── Insurance: 1% of construction
@@ -632,12 +665,15 @@ When `stability_index < 0.80`:
 ### `DIMS` Dictionary
 Contains all tower dimension and configuration parameters:
 - Tower geometry: `tower_width_m`, `tower_depth_m`, `tower_height_m`, `n_floors`
-- Tray parameters: `tray_count_per_floor`, `tray_size_m`, `tray_depth_m`
-- Panel parameters: `panel_rows_per_floor`, `facade_transparency`
-- Biological: `co2_concentration_pct`, `nutrient_boost`, `temp_c`
-- Engineering: `electrolysis_efficiency`, `led_supplement_fraction`
-- Economic: `oil_price_per_barrel`, `fuel_price_per_gallon`, `carbon_credit_per_ton`
-- Stability: `contamination_risk_base`, `temp_risk_base`, etc.
+- Tray parameters: `tray_count`, `tray_width_m`, `tray_depth_m`, `tray_levels_per_floor`
+- Panel parameters: `panel_rows_per_floor`, `facade_capture_eff`
+- Species ratios: `species_ratio_braunii/synechocystis/eutropha/opacus` (40/25/20/15%)
+- Oil fractions: `braunii/synechocystis/eutropha/opacus_oil_fraction` + `engineered_oil_fraction_*`
+- Feeding: ~50 tactic keys (`*_feed_*`, waste-stream feeds) + saturation caps
+- Biological: `co2_enrichment_pct`, `nutrient_boost_factor`, `temp_optimal_c`
+- Engineering: `electrolysis_eff`, `soec_efficiency`, `led_supplement_fraction`
+- Economic: `fuel_price_per_gallon` ($3.00), `carbon_credit_per_ton` ($50)
+- Stability: `contamination_risk_per_hr`, `temp_excursion_risk_per_hr`, etc. + mitigation factors
 
 ### `TOWER_SIZES` Dictionary
 Five presets (`pilot`, `small`, `medium`, `large`, `mega`), each overriding `DIMS` values.
@@ -678,6 +714,7 @@ Species colors (used in bacteria and synergy tabs):
 - B. braunii: `(100, 200, 120)` -- Green
 - Synechocystis: `(100, 160, 240)` -- Blue
 - R. eutropha: `(240, 160, 60)` -- Orange
+- R. opacus: `(240, 120, 140)` -- Rose/red
 
 ---
 
@@ -686,11 +723,17 @@ Species colors (used in bacteria and synergy tabs):
 ### UI Helpers
 | Function | Description |
 |----------|-------------|
+| `_CachedFont` | Font proxy memoizing `render()`/`size()` (per-tab font objects) |
 | `_panel(surf, x, y, w, h, alpha=200)` | Semi-transparent panel with border (cached via `_panel_cache`) |
-| `_label(surf, font, text, pos, accent=False)` | Text with background label |
+| `_label(surf, font, text, pos, accent=False)` | Text with background label (cached via `_label_bg_cache`) |
 | `_bar(surf, font, x, y, w, frac, color, label, val)` | Progress bar with label |
 | `_mini_bar(surf, x, y, w, frac, color)` | Small progress bar |
 | `_section_hdr(surf, font, x, y, text, color)` | Section header with underline |
+| `_cached_tab(tag, surf, rect, impl, ...)` | Render a static tab once into a surface; blit thereafter (scroll==0 only) |
+| `_cached_bacteria_sim(idx)` / `_cached_synergy_factor(idx)` | Memoized sim/synergy results for panel bodies |
+| `get_fuel_manifest(state)` | 8 graded fuel products with live output (cached per size) |
+| `get_evidence_summary()` | Evidence-audit grade histogram {total, A, B, C, D} |
+| `run_screenshot_mode(args)` | Headless UI captures to `_ui_shots/` (`--screenshot`) |
 | `_clamp_x(v)` | Clamp x to non-negative |
 
 ### Synergy Tab Helpers
@@ -714,22 +757,28 @@ Species colors (used in bacteria and synergy tabs):
 
 ### `OilProductionModel.summary()` → dict
 Returns 200+ metrics including:
-- `oil_kg_per_hr`, `oil_barrels_per_day`, `oil_barrels_per_year`
-- `co2_uptake_kg_per_hr`, `o2_kg_per_hr`
-- `braunii_oil_kg_per_hr`, `synecho_oil_kg_per_hr`, `eutropha_day_oil_kg_per_hr`, `eutropha_night_oil_kg_per_hr`
-- `braunii_oil_frac`, `synecho_oil_frac`, `eutropha_oil_frac`
+- `oil_kg_per_hr`, `oil_barrels_per_day`, `oil_barrels_per_year`, `stable_oil_barrels_per_day`
+- `co2_uptake_kg_per_hr`, `o2_kg_per_hr`, `co2_tonnes_per_year`, `cars_equivalent_per_yr`, `fossil_co2_avoided_t_per_yr`, `net_co2_benefit_t_per_yr`
+- `braunii_oil_kg_per_hr`, `synecho_oil_kg_per_hr`, `eutropha_day_oil_kg_per_hr`, `eutropha_night_oil_kg_per_hr`, `opacus_oil_kg_per_hr`
+- `braunii_oil_frac`, `synecho_oil_frac`, `eutropha_oil_frac`, `opacus_oil_frac`
 - `h2_storage_kg`, `h2_energy_MWh`
-- `biomass_kg`, `biofilm_area_m2`
-- `total_boost`, `env_mult`, `genetic_mult`, `light_dist_mult`
-- `stability_index`, `stability_loss_fraction`
+- `biomass_kg`, `biofilm_area_m2`, `effective_tray_count`
+- `total_boost`, `env_mult`, `genetic_mult`, `light_dist_mult`, `area_mult`
+- `feed_mult`, `hetero_feed_boost` (capped at 3.2x / 1.7x), `n_active_feeds`, `feed_cost_per_day`, `feed_cost_per_year`
+- `organic_feed_total_kg_hr`, `acetate_feed_kg_hr`, `formate_feed_kg_hr`, `glycerol_feed_kg_hr`, `molasses_feed_kg_hr`, `ferm_effluent_feed_kg_hr`, `bicarbonate_feed_kg_hr`, `n_feed_kg_hr`, `p_feed_kg_hr`, `urea_feed_kg_hr`, `digestate_return_kg_hr`
+- `nitrogen_recycled_pct`, `phosphorus_recycled_pct`, `water_recycled_kg_per_hr`
+- `stability_index`, `stability_loss_fraction`, `lost_oil_kg_per_hr`, `effective_risk_per_hr`
 - `contam_risk`, `temp_risk`, `nutrient_risk`, `ph_risk`, `light_risk`
-- `gasoline_kg_per_hr`, `jet_fuel_kg_per_hr`, `diesel_kg_per_hr`, `chemicals_kg_per_hr`
-- `revenue_fuel_per_year`, `revenue_carbon_per_year`, `total_revenue_per_year`
-- `construction_cost`, `operating_cost_per_year`, `annual_profit`, `payback_years`, `roi_pct`
-- `total_solar_power_MW`, `led_power_MW`, `electrolysis_type`
+- `night_oil_kg_per_hr`, `night_co2_kg_per_hr`, `night_o2_kg_per_hr`, `chemo_eff`, `h2_power_W`
+- `gasoline_kg_per_hr`, `jet_fuel_kg_per_hr`, `diesel_kg_per_hr`, `chemicals_kg_per_hr`, `renewable_diesel_kg_per_hr`
+- `saleable_fuel_bbl_per_day`, `saleable_fuel_gal_per_day`, `processing_eff`, `processing_energy_kW`
+- `ground_storage_capacity_bbl`, `ground_drain_bbl_per_day`
+- `revenue_fuel_per_year`, `revenue_fuel_per_day`, `revenue_carbon_per_year`, `total_revenue_per_year`
+- `construction_cost`, `operating_cost_per_year`, `labor_cost`, `maintenance_cost`, `insurance_cost`, `depreciation_per_year`, `tax_per_year`, `annual_profit`, `payback_years`, `roi_pct`
+- `total_solar_power_MW`, `led_power_MW`, `sun_tracking_boost`, `seasonal_derate`, `solar_derate`, `dark_resp_loss_kg_per_hr`
 - And many more...
 
-### `BACTERIA_TEMPLATES` → dict
+### `BACTERIA_TEMPLATES` → dict (4 species)
 ```python
 {
     0: {
@@ -747,12 +796,22 @@ Returns 200+ metrics including:
         "key_pathway": "MEP -> botryococcene (SSL-1/2/3)",
         "harvest_method": "extracellular_excretion",
         "harvest_efficiency": 0.95,
-        # ... more fields
+        "readiness": "READY -- UTEX 572, orderable, BSL-1",
+        "theoretical_flags": "85% engineered fraction, 95% milking eff",
+        "evidence_grade": "A (organism/pathway real); D for engineered target",
+        # ... more fields: genome detail, operons, proteins,
+        # procurement, science_notes (incl. PROOF OF CAPABILITY block)
     },
     1: { ... },  # Synechocystis
     2: { ... },  # R. eutropha
+    3: { ... },  # R. opacus PD630
 }
 ```
+
+Every template carries `readiness` (READY = real/orderable/alive + catalog ID + vendor + BSL) and `theoretical_flags` (which modeled targets exceed published values). `source` is `"real_template"` for all four.
+
+### `EVIDENCE_AUDIT` → list of claim dicts
+59 load-bearing claims, each `{grade, module, parameter, modeled, published, source, note}`. Grades: A=deployed/replicated, B=pilot/strong-lit, C=lit-based inference, D=modeled assumption. Histogram: `get_evidence_summary()` → `{total: 59, A: 9, B: 21, C: 16, D: 13}`; printed via `--audit` / `print_evidence_audit()`.
 
 ### `BIO` → dict
 80+ biological constants organized by category:
@@ -778,7 +837,7 @@ Returns 200+ metrics including:
 | Stage | Test | What It Verifies |
 |-------|------|------------------|
 | 1 | Building tower geometry | 291 parts, 35K vertices, 28K faces |
-| 2 | Production model | All 3 species, mass balance, CO2/O2/H2 |
+| 2 | Production model | All 4 species, mass balance, CO2/O2/H2 |
 | 3 | Mass balance | Conservation of mass (CO2 + H2O = Oil + O2 + Biomass) |
 | 4 | Bacteria templates | Genome sizes, GC content, gene counts match literature |
 | 5 | Render test | Software renderer produces valid output |
@@ -808,16 +867,22 @@ All stages must pass for `SELF TEST PASSED`.
 
 | Metric | Value |
 |--------|-------|
-| File size | ~495 KB (OilFabricationTower.py) |
-| Lines of code | ~8,250 |
+| File size | ~711 KB (OilFabricationTower.py) |
+| Lines of code | ~12,016 |
 | Tower parts | 291 |
 | Vertices | 35,136 |
 | Faces | 27,619 |
 | BIO constants | 80+ |
-| Bacteria templates | 3 species |
+| Bacteria templates | 4 species (all READY-marked, orderable) |
+| Candidate species | 10 real organisms with status |
+| Feeding tactics | 50 (3 groups, capped multipliers) |
 | Model functions | 20+ |
 | Summary dict keys | 200+ |
 | UI tabs | 5 |
+| Info pages | 27 (incl. PROOF & VALIDATION) |
+| Evidence audit claims | 59 (9A / 21B / 16C / 13D) |
+| Fuel products | 8 graded (A-D) |
+| UI caches | `_CachedFont`, `_species_panel_cache`, `_tab_static_cache`, `_fuel_manifest_cache`, `_sim_cache`, `_syn_factor_cache`, `_label_bg_cache`, `_panel_cache`, `_glow_cache`, `_grid_cache` |
 | Render FPS | 30-60 (typical) |
 | Self-test time | ~5 seconds |
 | Dependencies | pygame, numpy |

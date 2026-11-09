@@ -19,7 +19,7 @@ trickles down floor by floor to a spout → fresh oil flows out
 - [Interactive UI -- 5 Tabs](#interactive-ui----5-tabs)
 - [Keyboard & Mouse Controls](#keyboard--mouse-controls)
 - [Tower Size Presets](#tower-size-presets)
-- [Three Bacterial Species](#three-bacterial-species)
+- [Four Bacterial Species](#four-bacterial-species)
 - [Biological Model Subsystems](#biological-model-subsystems)
 - [Synergy Multipliers](#synergy-multipliers)
 - [Economic Model](#economic-model)
@@ -27,7 +27,7 @@ trickles down floor by floor to a spout → fresh oil flows out
 - [Oil Processing & Refining](#oil-processing--refining)
 - [Nighttime Production (H2 Storage)](#nighttime-production-h2-storage)
 - [Advanced Features](#advanced-features)
-- [BacteriaModel.py Module Interface](#bacteriamodelpy-module-interface)
+- [Module Interface & Showcase Modes](#module-interface--showcase-modes)
 - [File Structure](#file-structure)
 - [Scientific References](#scientific-references)
 
@@ -77,11 +77,22 @@ No other dependencies. The 3D renderer is a pure-Python software renderer (numpy
 | `python OilFabricationTower.py --feasibility` | Full feasibility report with economics |
 | `python OilFabricationTower.py --report`    | Detailed production report (all metrics) |
 | `python OilFabricationTower.py --export-obj` | Export 3D tower geometry to OBJ + MTL files |
-| `python BacteriaModel.py`                   | Bacteria model showcase report |
-| `python BacteriaModel.py --species 0`       | Single species report (B. braunii) |
-| `python BacteriaModel.py --species 2`       | Single species report (R. eutropha) |
-| `python BacteriaModel.py --compare`         | Side-by-side species comparison |
-| `python BacteriaModel.py --json`            | JSON export of all bacteria model data |
+| `python OilFabricationTower.py --audit`    | Evidence audit: 59 load-bearing claims graded A-D vs published science |
+| `python OilFabricationTower.py --optimize` | Sweep species ratios; print mix maximizing modeled stable oil |
+| `python OilFabricationTower.py --fuels`    | Fuel manifest: gasoline/jet/diesel/HVO/FAME/isobutanol with real specs + grades |
+| `python OilFabricationTower.py --bacteria`  | Bacteria template + consortium report |
+| `python OilFabricationTower.py --showcase`  | Full ChiefJuice-depth showcase: all 4 species + comparison |
+| `python OilFabricationTower.py --species 0` | Single species showcase (B. braunii) |
+| `python OilFabricationTower.py --species 3` | Single species showcase (R. opacus PD630) |
+| `python OilFabricationTower.py --compare`   | Side-by-side species comparison (4 columns, incl. readiness row) |
+| `python OilFabricationTower.py --json`      | JSON export of all bacteria model data (`--species` to limit) |
+| `python OilFabricationTower.py --simulate 0 --duration 168` | Temporal simulation (1-week run) |
+| `python OilFabricationTower.py --monte-carlo 0 --mc-runs 50` | Monte Carlo uncertainty analysis |
+| `python OilFabricationTower.py --scenarios 0` | Operating-scenario comparison |
+| `python OilFabricationTower.py --risk 0`    | Benefit/risk assessment |
+| `python OilFabricationTower.py --size mega` | Apply a tower size preset before any command |
+| `python OilFabricationTower.py --list-sizes` | Print all tower size presets |
+| `python OilFabricationTower.py --screenshot all` | Headless UI captures to `_ui_shots/` |
 
 ---
 
@@ -93,43 +104,52 @@ The application opens a pygame window with a top tab bar. Switch tabs with `Tab`
 - Interactive 3D software-rendered view of the full tower
 - Orbit camera (drag), pan (right-drag), zoom (wheel)
 - Cross-section view (`X`), exploded view (`E`), labels (`L`)
-- Info panel (right side) with multiple pages (`I` / `Shift+I` or `PgUp`/`PgDn`)
-- Hotkey overlay panel (left side) listing all controls
-- Left stats panel: real-time production metrics
+- Info panel (right side) with 27 scrollable pages (`I` / `Shift+I` or `PgUp`/`PgDn`), including species pages, feeding program, and the **PROOF & VALIDATION** ledger (page 26)
+- CONTROLS panel (left side) listing all 17 key/mouse bindings
+- Left stats panel: live oil rate, stable bbl/day, saleable fuel, CO2 capture in Mt/yr, HVO output, active feed count
+- Live topbar stats strip on every tab: `bbl/d | t/h | feeds`
 
 ### Tab 2: BACTERIA
-- Animated species-specific cell diagrams with organelles
+- Animated species-specific cell diagrams with organelles (4 species, clickable columns)
 - Phospholipid bilayer membranes, DNA strands, metabolic pathways
-- Hover organelles for tooltip popups
-- Click organelles to select and see detail panel
-- Click species panel to switch between species
-- Exploded view mode (`E`) separates organelles for clarity
-- Left/Right arrow keys to switch species
+- **Readiness badges**: green `READY` chip (real, orderable, alive today) + amber `THEORETICAL` line listing engineered-target assumptions
+- **Lit grade** line (evidence grade A-D) + pointer to the PROOF & VALIDATION ledger
+- Live tower contribution per species (kg/hr + share bar)
+- Hover organelles for tooltip popups; click organelles to select and see detail panel
+- Deep scrollable detail: genome, cell anatomy, pathway, computed proteins, operons, procurement, simulation, advanced analysis, **PROOF OF CAPABILITY** (published evidence per species), science notes
+- Exploded view mode (`E`) separates organelles for clarity; Left/Right arrows switch species
+- Panel content cached to full-height off-screen surfaces (`_species_panel_cache`, 8000px) -- deep scroll is instant
 
 ### Tab 3: PRODUCTION
-- Full production report in scrollable UI format
-- Species-by-species oil output breakdown
-- Light capture, CO2 fixation, biomass, water recycling
-- Solar capture details (tracking, seasonal derate, panel degradation)
-- Biomass turnover and maintenance carbon
+- Three-column scrollable layout: solar capture + output + species shares | multipliers + CO2 cleanup + biomass + mass balance | processing + stability + nighttime
+- Species breakdown with live share bars (kg/hr + % of total + oil fraction + mode)
+- **Mass balance** block: CO2 + H2O + organic feed in vs oil + O2 out, with residual labeled as biomass/maintenance
+- **Fuel slate**: 8 graded fuel products (grade chips [A]-[D], kg/hr, gal/day) from `get_fuel_manifest()`
+- **Feeding program band**: all 50 active feed tactics in 3 groups (N/P/micronutrients, inorganic carbon, organic co-feed), feed caps, N/P/water recycle rates, biofilm area, $/day cost
+- **PROOF AT SCALE band**: real deployments (Sapphire demo fleet, Continental/JAL flights, Neste/DGD commercial HVO, Monsanto/Metabolix PHA, Gevo) + honest gap line
+- **MODEL AUDIT histogram**: 59 claims graded A-D (Ax9 Bx21 Cx16 Dx13) -- deployed vs modeled evidence quantified on-screen
 
 ### Tab 4: ECONOMICS
-- Construction cost (CapEx) breakdown
-- Operating cost (OpEx): labor, maintenance, insurance, depreciation, tax
-- Revenue: fuel sales + carbon credits
-- Net profit, payback period, ROI
-- Oil processing/refining output (gasoline, jet, diesel, chemicals)
+- Construction cost (CapEx) breakdown + revenue (fuel vs carbon share bar)
+- OpEx incl. **feed inputs** ($215M/yr -- the dominant cost) with share bar; labor, maintenance, insurance, depreciation, tax
+- **Per-barrel economics**: revenue, opex, feed cost, margin per bbl
+- Revenue-by-stream bars + fuel price ($3.00/gal) / carbon credit ($50/t) assumptions
+- **SENSITIVITY block**: estimated ROI at $1.50/$2.25/$3.00/$4.00/$5.00 per gal (base case highlighted)
+- **MODEL CAVEATS**: outputs flagged as modeled/THEORETICAL extrapolations, feed caps + ROI sanity bound noted
 
 ### Tab 5: SYNERGY
-- Step-by-step flow diagram showing all 3 species side-by-side
-- 6 metabolic steps per species (18 total, 96px each) with animated flow arrows
+- Step-by-step flow diagram showing all 4 species side-by-side
+- 6 metabolic steps per species (24 total, 96px each) with animated flow arrows
 - Cross-species synergy arrows routing horizontally between specific step rows (O2, H2, exudates exchange)
-- KPI strip at top: oil, CO2, O2, H2, revenue, stability
+- KPI strip at top: oil, CO2, O2, H2, HVO, feeds, revenue, stability (8 chips)
+- **READY badges** on all 4 species headers
+- **LIVE CROSS-SPECIES FLOWS** panel: 7 quantified exchanges (O2, respired CO2, organic-C, exudates/lysate, digestate, H2 buffer, nutrient loops) from the live model
 - Efficiency rings and bars on each step box
 - Cached glow effects, animated grid background, trailing particles
 - Responsive layout with text truncation (adapts to window width)
 - Synergy multiplier values from `BACTERIA_SYNERGY` dict with gradient mini bars
 - Scientific proofs & references section with peer-reviewed citations
+- **DEMONSTRATED AT SCALE** panel: commercial deployments + field/pilot evidence + honest-gap statement
 - Live tower model output with computed synergy factor
 - Performance caches: `_glow_cache`, `_grid_cache`, `_panel_cache`
 
@@ -144,6 +164,7 @@ The application opens a pygame window with a top tab bar. Switch tabs with `Tab`
 | `1`-`5`         | Jump to specific tab                |
 | Click tab label | Switch to clicked tab               |
 | `Up`/`Down`     | Scroll content                      |
+| `Left`/`Right`  | Scroll content (species select on Bacteria tab) |
 | `Home`/`End`    | Scroll to top / bottom              |
 | `P`             | Pause/resume simulation             |
 | `O`             | Export OBJ + MTL                    |
@@ -194,37 +215,39 @@ Each preset adjusts tower dimensions, tray count, tray size, panel rows, vent co
 
 ---
 
-## Three Bacterial Species
+## Four Bacterial Species
 
-The tower houses a hybrid culture of three engineered bacterial species, each filling a distinct ecological niche:
+The tower houses a hybrid culture of four species, each filling a distinct ecological niche. **All four are real, orderable organisms** -- marked `READY` in the UI and reports (catalog ID + vendor + biosafety level shown). Their engineered oil fractions, CRISPR gains, continuous-harvest efficiencies, and tower-scale titers are flagged `THEORETICAL` -- the model never presents engineered targets as published reality.
 
-### 1. Botryococcus braunii (Race B) -- Primary Oil Producer
+### 1. Botryococcus braunii (Race B) -- Primary Oil Producer -- READY: UTEX 572
 - **Type**: Photoautotroph (green alga)
 - **Oil**: Botryococcene (C34H58) -- triterpene hydrocarbon
-- **Oil fraction**: 75% dry weight (engineered to 85%)
+- **Oil fraction**: 75% dry weight (engineered to 85%, THEORETICAL)
 - **Doubling time**: 48 hours
 - **CO2 tolerance**: 5%
 - **Genome**: 14,000 genes, GC 54.5%
-- **Harvest**: Extracellular excretion (continuous milking, 95% efficiency)
+- **Harvest**: Extracellular excretion (continuous milking, 95% efficiency -- THEORETICAL; published basis: excretion into colonial matrix, Weiss et al. 2010)
 - **Key pathway**: MEP pathway → FPP → SSL-1/2/3 → botryococcene
 - **Key advantage**: Oil excreted outside cell -- no cell disruption needed
+- **At scale**: Sapphire Energy 'green crude' demo fleet + Continental/JAL algae-jet flights (2009)
 
-### 2. Synechocystis sp. PCC 6803 -- Fast Alkane Producer
+### 2. Synechocystis sp. PCC 6803 -- Fast Alkane Producer -- READY: ATCC 27184 / PCC 6803
 - **Type**: Photoautotroph (cyanobacterium)
 - **Oil**: Alkanes C15-C17 (direct diesel-range blend)
-- **Oil fraction**: 15% dry weight (engineered to 25%)
+- **Oil fraction**: 15% dry weight (engineered to 25%, THEORETICAL)
 - **Doubling time**: 8 hours
 - **CO2 tolerance**: 5%
 - **Genome**: 3,672 genes, GC 47.8%
-- **Harvest**: Partial excretion + in-line separation (82% efficiency)
+- **Harvest**: Partial excretion + in-line separation (82% efficiency, THEORETICAL)
 - **Key pathway**: Fatty acid synthase → AAR → ADO → alkane
 - **Key advantage**: Direct diesel-range fuel, no processing needed (95% direct blend)
 - **Engineering**: Truncated antenna (+20% light distribution), CRISPR aar+ado overexpression
+- **Proof**: aar+ado pathway heterologously expressed in E. coli at ~300 mg/L (Schirmer 2010, Science)
 
-### 3. Ralstonia eutropha H16 (Cupriavidus necator) -- Nighttime Producer
+### 3. Ralstonia eutropha H16 (Cupriavidus necator) -- Nighttime Producer -- READY: DSM 428 / ATCC 17699
 - **Type**: Chemoautotroph (Knallgas bacterium)
 - **Oil**: PHB (polyhydroxybutyrate, C4H6O2)n
-- **Oil fraction**: 87% dry weight (engineered to 92%)
+- **Oil fraction**: 87% dry weight (engineered to 92%, THEORETICAL)
 - **Doubling time**: 3.5 hours (fastest)
 - **CO2 tolerance**: 10%
 - **Genome**: 6,626 genes, GC 66.5%
@@ -232,12 +255,28 @@ The tower houses a hybrid culture of three engineered bacterial species, each fi
 - **Key pathway**: CBB cycle → acetyl-CoA → PhaA/B/C → PHB
 - **Key advantage**: Produces oil at night using stored H2 (no sunlight needed)
 - **Energy**: [NiFe] hydrogenase oxidizes H2 → NADH + ATP
+- **At scale**: Monsanto Biopol / Metabolix Mirel / Tepha PHA -- >100 t/yr commercial fermentation
+
+### 4. Rhodococcus opacus PD630 -- 24/7 Waste-Eater -- READY: DSM 44193 / ATCC 51194
+- **Type**: Heterotroph (oleaginous actinomycete, Gram-positive mycomembrane)
+- **Oil**: TAG (triacylglycerol, C16:0/C18:1) + wax esters
+- **Oil fraction**: 76% dry weight (engineered to 87%, THEORETICAL)
+- **Doubling time**: 3 hours
+- **CO2 tolerance**: 10%
+- **Genome**: ~9,200 genes, GC 67.0%
+- **Harvest**: Auto-flocculation (mycolic wall) + solvent extraction (82% efficiency, THEORETICAL)
+- **Key pathway**: Waste-C (VFA/aromatics/waste oils) → β-oxidation → acetyl-CoA → FAS-I → atf DGAT/WS → TAG
+- **Key advantage**: Eats the streams nothing else can (lignin aromatics, VFAs, trap grease); runs 24/7 with no light or H2
+- **Fuel path**: TAG → transesterification → FAME biodiesel | TAG → HDO → HVO renewable diesel
+- **At scale**: Neste NEXBTL + Diamond Green Diesel run commercial HVO at 100M+ gal/yr (the TAG→HDO route this species feeds)
 
 ### Species Cross-Feeding Synergies
 - **B. braunii → R. eutropha**: Daytime O2 feeds nighttime Knallgas (H2 oxidation)
 - **Synechocystis → R. eutropha**: Photosynthetic exudates feed daytime mixotrophic growth
 - **R. eutropha → B. braunii**: Dark fermentation H2 supports N-fixation pathway
 - **R. eutropha → Synechocystis**: H2 for mixotrophic CO2 fixation (enhanced carbon flux)
+- **All species → R. opacus**: Exudates, lysed biomass + waste streams valorized 24/7
+- **R. opacus → all**: Respired CO2 returned to phototrophs (carbon loop closes)
 
 ---
 
@@ -320,10 +359,17 @@ The `compute_synergy_factor(state)` function computes the live synergy multiplie
 - **Tax**: 21% corporate rate
 
 ### Key Metrics (Large Tower, Default)
-- **Oil output**: ~2,966 bbl/day (~1,082,503 bbl/yr)
-- **Total boost**: 325x over baseline
+- **Oil output**: ~19,075 bbl/day (~6,962,412 bbl/yr) -- modeled, grade D
+- **Oil rate**: 107,417 kg/hr
+- **CO2 consumed**: 217,831 kg/hr (~1.91 Mt/yr)
+- **O2 produced**: 145,991 kg/hr
+- **HVO renewable diesel** (R. opacus TAG): 40,099 kg/hr
+- **Organic co-feed**: 9,293 kg/hr across 50 feed tactics (caps: shared x3.20, hetero x1.70)
+- **Feed cost**: ~$590K/day (~$216M/yr, 95% of opex)
+- **Total boost**: 1041x over baseline
 - **Stability index**: 99.8%
-- **Payback period**: Varies by size preset
+- **ROI**: ~350%/yr (modeled, sanity-bound 400%)
+- **Payback period**: ~0.3 years (modeled)
 
 ---
 
@@ -358,9 +404,11 @@ The tower includes on-site processing of raw bio-oil to saleable fuels:
 | Gasoline   | B. braunii        | Botryococcene hydrocrack | 67% of C34 |
 | Jet fuel   | B. braunii        | Botryococcene hydrocrack | 15% of C34 |
 | Diesel     | Synechocystis     | Direct alkane blend      | 95% direct |
+| Renewable diesel (HVO) | R. opacus | TAG hydrodeoxygenation (EN 15940) | 90% |
+| Biodiesel (FAME) | R. opacus | TAG transesterification (EN 14214) | alt route, same feedstock |
 | Chemicals  | R. eutropha       | PHB depolymerization     | 80% to propylene + butyric acid |
 
-Processing energy: 5% of produced oil energy used for refining.
+Processing energy: 5% of produced oil energy used for refining. The full graded manifest (8 products with real specs, evidence, and modeled gal/day) is available via `--fuels`.
 
 ---
 
@@ -409,16 +457,19 @@ The tower achieves 24-hour production through H2 storage:
 
 ---
 
-## BacteriaModel.py Module Interface
+## Module Interface & Showcase Modes
 
-`BacteriaModel.py` re-exports all bacteria model functions from `OilFabricationTower.py` as a standalone library:
+`OilFabricationTower.py` is standalone — import it directly (formerly `BacteriaModel.py`, now merged in):
 
 ```python
-from BacteriaModel import compute_bacteria_model, BACTERIA_TEMPLATES
+from OilFabricationTower import compute_bacteria_model, BACTERIA_TEMPLATES
 
 result = compute_bacteria_model(0)  # B. braunii
 print(result['photosynthesis']['co2_fixed_kg_hr'])
 ```
+
+The showcase-report suite lives here too: `--showcase`, `--species`, `--compare`, `--json`,
+`--simulate`, `--monte-carlo`, `--scenarios`, `--risk`, `--duration`, `--mc-runs`.
 
 ### Exports
 
@@ -436,8 +487,8 @@ print(result['photosynthesis']['co2_fixed_kg_hr'])
 
 ```
 OilSynthesis/
-├── OilFabricationTower.py    # Main application (8,250+ lines)
-├── BacteriaModel.py          # Module interface / standalone library
+├── OilFabricationTower.py    # Main application — standalone (model + UI + reports)
+├── OilFabricationTower.md    # System doc: CO2 cleanup impact + species detail
 ├── OilFabricationTower.obj   # Exported 3D model (OBJ format)
 ├── OilFabricationTower.mtl   # Exported materials (MTL format)
 ├── ChiefJuiceV1.17.py        # Reference codebase (pattern source)
@@ -447,6 +498,24 @@ OilSynthesis/
 ├── ABOUT.md                  # Project background & philosophy
 └── OVERVIEW.md               # Technical architecture overview
 ```
+
+---
+
+## Readiness, Proof & Evidence
+
+The app enforces an honesty convention throughout UI, reports, and docs:
+
+- **READY** -- organism is real, alive today, and orderable from a culture collection (catalog ID + vendor + BSL shown). All 4 consortium species are READY.
+- **THEORETICAL** -- engineered oil fractions, CRISPR gains, continuous-harvest efficiencies, and tower-scale titers are model assumptions, flagged wherever they appear.
+
+Proof is surfaced in four places:
+
+1. **Species panels** (Bacteria tab): `PROOF OF CAPABILITY` section per species -- published titers, heterologous-expression results, genome data, at-scale notes.
+2. **INFO page 26** (Tower tab): consolidated `PROOF & VALIDATION` ledger -- commercial deployments, field/pilot demos, lab-validated mechanisms, and an explicit NOT-PROVEN list.
+3. **Production tab**: `PROOF AT SCALE` band + `MODEL AUDIT` histogram (59 claims: 9 deployed/9A, 21 pilot-lit, 16 lit-based, 13 modeled).
+4. **`--audit` CLI**: full grade-per-claim evidence table with sources.
+
+Honest gap: the organisms, pathways, and refining routes are demonstrated at scale; the consortium-scale tower integration and headline output are first-principles model estimates (grade D), not measured results.
 
 ---
 
